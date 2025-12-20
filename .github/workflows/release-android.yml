@@ -54,23 +54,30 @@ jobs:
       - name: Build Android appbundle
         run: flutter build appbundle --release
 
-      - name: Upload AAB to GitHub Release (tagged)
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload Android artifacts to GitHub Release (tagged)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: build/app/outputs/bundle/release/app-release.aab
+          files: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload AAB to GitHub Release (build)
+      - name: Upload Android artifacts to GitHub Release (build)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}-${{ github.run_attempt }}
           name: Build ${{ github.run_number }}.${{ github.run_attempt }}
           target_commitish: ${{ github.sha }}
-          files: build/app/outputs/bundle/release/app-release.aab
+          files: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
