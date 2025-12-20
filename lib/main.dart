@@ -1,121 +1,296 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const WeViewApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class WeViewApp extends StatelessWidget {
+  const WeViewApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'WeView',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const WebViewScreen(initialUrl: 'https://rajkalyan.com'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class WebViewScreen extends StatefulWidget {
+  const WebViewScreen({super.key, required this.initialUrl});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  final String initialUrl;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<WebViewScreen> createState() => _WebViewScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _WebViewScreenState extends State<WebViewScreen> {
+  late final WebViewController _controller;
+  double _progress = 0;
+  bool _canGoBack = false;
+  bool _canGoForward = false;
+  bool _isOnline = true;
+  bool _dialogVisible = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => _updateProgress(0),
+          onProgress: (value) => _updateProgress(value / 100),
+          onPageFinished: (_) async {
+            await _syncNavigationState();
+            _updateProgress(1);
+          },
+          onWebResourceError: (_) {
+            _handleOffline(message: 'Unable to load the page. Check your internet connection.');
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.initialUrl));
+    _initConnectivity();
+  }
+
+  Future<void> _initConnectivity() async {
+    final status = await Connectivity().checkConnectivity();
+    _handleConnectivityResults(status);
+
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen(_handleConnectivityResults);
+  }
+
+  void _handleConnectivityResults(List<ConnectivityResult> results) {
+    final result = results.isNotEmpty ? results.first : ConnectivityResult.none;
+    _handleConnectivityResult(result);
+  }
+
+  void _handleConnectivityResult(ConnectivityResult result) {
+    final online = result != ConnectivityResult.none;
+    if (!mounted || _isOnline == online) return;
+
+    if (!online) {
+      _handleOffline(message: 'You appear to be offline.');
+      return;
+    }
+
+    setState(() => _isOnline = true);
+    _closeDialogIfOpen();
+    _controller.reload();
+  }
+
+  void _handleOffline({required String message}) {
+    if (!mounted) return;
+    setState(() => _isOnline = false);
+    _showOfflineDialog(message);
+  }
+
+  Future<void> _showOfflineDialog(String message) async {
+    if (_dialogVisible || !mounted) return;
+    _dialogVisible = true;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('No Connection'),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _dialogVisible = false;
+              _handleRetry();
+            },
+            isDefaultAction: true,
+            child: const Text('Retry'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _dialogVisible = false;
+            },
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _closeDialogIfOpen() {
+    if (!_dialogVisible) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    _dialogVisible = false;
+  }
+
+  Future<void> _handleRetry() async {
+    final status = await Connectivity().checkConnectivity();
+    final online = status.any((r) => r != ConnectivityResult.none);
+
+    if (online) {
+      setState(() => _isOnline = true);
+      await _controller.reload();
+    } else {
+      _showOfflineDialog('Still no connection. Please try again.');
+    }
+  }
+
+  void _updateProgress(double value) {
+    if (!mounted) return;
+    setState(() => _progress = value);
+  }
+
+  Future<void> _syncNavigationState() async {
+    final canGoBack = await _controller.canGoBack();
+    final canGoForward = await _controller.canGoForward();
+
+    if (!mounted) return;
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _canGoBack = canGoBack;
+      _canGoForward = canGoForward;
     });
+  }
+
+  Future<void> _goBack() async {
+    if (await _controller.canGoBack()) {
+      await _controller.goBack();
+      await _syncNavigationState();
+    }
+  }
+
+  Future<void> _goForward() async {
+    if (await _controller.canGoForward()) {
+      await _controller.goForward();
+      await _syncNavigationState();
+    }
+  }
+
+  Future<void> _reload() => _controller.reload();
+
+  Future<void> _goHome() async {
+    await _controller.loadRequest(Uri.parse(widget.initialUrl));
+    await _syncNavigationState();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: SafeArea(
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
           children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            if (_progress < 1 && _isOnline)
+              LinearProgressIndicator(value: _progress),
+            Expanded(
+              child: _isOnline
+                  ? WebViewWidget(controller: _controller)
+                  : OfflineView(onRetry: _handleRetry),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      bottomNavigationBar: BottomAppBar(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.home),
+                tooltip: 'Home',
+                onPressed: _isOnline ? _goHome : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: _isOnline && _canGoBack ? _goBack : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward),
+                tooltip: 'Forward',
+                onPressed: _isOnline && _canGoForward ? _goForward : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Reload',
+                onPressed: () {
+                  if (_isOnline) {
+                    _reload();
+                  } else {
+                    _handleRetry();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OfflineView extends StatelessWidget {
+  const OfflineView({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/logo.webp',
+                width: 96,
+                height: 96,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No internet connection',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Check your connection and try again.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }

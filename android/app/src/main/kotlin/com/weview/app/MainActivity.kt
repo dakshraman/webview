@@ -1,4 +1,4 @@
-package com.example.weview
+package com.weview.app
 
 import io.flutter.embedding.android.FlutterActivity
 

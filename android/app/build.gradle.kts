@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,9 +8,38 @@ plugins {
 }
 
 android {
-    namespace = "com.example.weview"
+    namespace = "com.weview.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    }
+
+    val envStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+    val envStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+    val envKeyAlias = System.getenv("ANDROID_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+    val envKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+
+    val appKeystore = rootProject.file("app/upload-keystore.jks")
+    val repoKeystore = rootProject.file("../upload-keystore.jks")
+    val fallbackStoreFile = when {
+        appKeystore.exists() -> appKeystore
+        repoKeystore.exists() -> repoKeystore
+        else -> null
+    }
+
+    val storeFileValue = envStoreFile
+        ?: keystoreProperties["storeFile"]?.toString()?.takeIf { it.isNotBlank() }
+    val resolvedStoreFile = storeFileValue?.let { rootProject.file(it) } ?: fallbackStoreFile
+    val storePasswordValue = envStorePassword
+        ?: keystoreProperties["storePassword"]?.toString()?.takeIf { it.isNotBlank() }
+    val keyAliasValue = envKeyAlias
+        ?: keystoreProperties["keyAlias"]?.toString()?.takeIf { it.isNotBlank() }
+    val keyPasswordValue = envKeyPassword
+        ?: keystoreProperties["keyPassword"]?.toString()?.takeIf { it.isNotBlank() }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -19,9 +50,26 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            val hasReleaseSigning = resolvedStoreFile != null &&
+                !storePasswordValue.isNullOrBlank() &&
+                !keyAliasValue.isNullOrBlank() &&
+                !keyPasswordValue.isNullOrBlank()
+
+            if (hasReleaseSigning) {
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+                storeFile = resolvedStoreFile
+                storePassword = storePasswordValue
+            } else {
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.weview"
+        applicationId = "com.weview.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -32,9 +80,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use release signing if provided; otherwise fall back to debug for local builds.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
