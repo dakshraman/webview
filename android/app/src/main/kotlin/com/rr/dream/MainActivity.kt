@@ -1,4 +1,4 @@
-package com.weview.app
+package com.rr.dream
 
 import io.flutter.embedding.android.FlutterActivity
 
