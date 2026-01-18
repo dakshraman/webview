@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
@@ -195,7 +196,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             if (_progress < 1 && _isOnline)
@@ -208,40 +211,98 @@ class _WebViewScreenState extends State<WebViewScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        height: 56,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.home),
-                tooltip: 'Home',
-                onPressed: _isOnline ? _goHome : null,
+      bottomNavigationBar: GlassBottomBar(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.home),
+              tooltip: 'Home',
+              onPressed: _isOnline ? _goHome : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back',
+              onPressed: _isOnline && _canGoBack ? _goBack : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward),
+              tooltip: 'Forward',
+              onPressed: _isOnline && _canGoForward ? _goForward : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Reload',
+              onPressed: () {
+                if (_isOnline) {
+                  _reload();
+                } else {
+                  _handleRetry();
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GlassBottomBar extends StatelessWidget {
+  const GlassBottomBar({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    const double height = 60;
+    const double inset = 12;
+    final radius = BorderRadius.circular(20);
+
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(inset, 0, inset, inset),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                color: Colors.white.withOpacity(0.6),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back',
-                onPressed: _isOnline && _canGoBack ? _goBack : null,
+              child: Material(
+                type: MaterialType.transparency,
+                child: SizedBox(
+                  height: height,
+                  child: IconButtonTheme(
+                    data: IconButtonThemeData(
+                      style: IconButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F172A),
+                        disabledForegroundColor: const Color(0x990F172A),
+                        iconSize: 24,
+                        padding: const EdgeInsets.all(12),
+                      ),
+                    ),
+                    child: child,
+                  ),
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.arrow_forward),
-                tooltip: 'Forward',
-                onPressed: _isOnline && _canGoForward ? _goForward : null,
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Reload',
-                onPressed: () {
-                  if (_isOnline) {
-                    _reload();
-                  } else {
-                    _handleRetry();
-                  }
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),
