@@ -60,7 +60,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
             _updateProgress(1);
           },
           onWebResourceError: (_) {
-            _handleOffline(message: 'Unable to load the page. Check your internet connection.');
+            _handleOffline(
+              message:
+                  'Unable to load the page. Check your internet connection.',
+            );
           },
         ),
       )
@@ -72,9 +75,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final status = await Connectivity().checkConnectivity();
     _handleConnectivityResults(status);
 
-    _connectivitySubscription = Connectivity()
-        .onConnectivityChanged
-        .listen(_handleConnectivityResults);
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      _handleConnectivityResults,
+    );
   }
 
   void _handleConnectivityResults(List<ConnectivityResult> results) {
@@ -334,10 +337,7 @@ class OfflineView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'No internet connection',
-              style: theme.textTheme.titleLarge,
-            ),
+            Text('No internet connection', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'Check your connection and try again.',
