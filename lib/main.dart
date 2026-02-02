@@ -37,11 +37,15 @@ class WebViewScreen extends StatefulWidget {
 }
 
 class _WebViewScreenState extends State<WebViewScreen> {
+  static const String _pullToRefreshChannel = 'PullToRefreshChannel';
+  static const Duration _pullToRefreshCooldown = Duration(seconds: 2);
+
   late final WebViewController _controller;
   late final Uri _initialUri;
   double _progress = 0;
   bool _isOnline = true;
   bool _dialogVisible = false;
+  DateTime? _lastPullToRefreshAt;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
@@ -51,6 +55,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
+      ..addJavaScriptChannel(
+        _pullToRefreshChannel,
+        onMessageReceived: (message) {
+          if (message.message == 'refresh') {
+            _handlePullToRefresh();
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (request) {
@@ -59,13 +71,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
               unawaited(_openExternalUrl(uri));
               return NavigationDecision.prevent;
             }
-
-            unawaited(_clearWebViewData());
             return NavigationDecision.navigate;
           },
           onPageStarted: (_) => _updateProgress(0),
           onProgress: (value) => _updateProgress(value / 100),
-          onPageFinished: (_) => _updateProgress(1),
+          onPageFinished: (_) {
+            _updateProgress(1);
+            unawaited(_installPullToRefreshJs());
+          },
           onWebResourceError: (_) {
             _handleOffline(
               message:
@@ -181,17 +194,65 @@ class _WebViewScreenState extends State<WebViewScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _clearWebViewData() async {
-    await _controller.clearCache();
+  void _handlePullToRefresh() {
+    if (!_isOnline) return;
+    final now = DateTime.now();
+    if (_lastPullToRefreshAt != null &&
+        now.difference(_lastPullToRefreshAt!) < _pullToRefreshCooldown) {
+      return;
+    }
+    _lastPullToRefreshAt = now;
+    unawaited(_reload());
+  }
+
+  Future<void> _installPullToRefreshJs() async {
+    if (!_isOnline) return;
+    const script =
+        '''
+(function() {
+  if (window.__weviewPullToRefreshInstalled) return;
+  window.__weviewPullToRefreshInstalled = true;
+  var startY = 0;
+  var tracking = false;
+  var triggered = false;
+  function getScrollTop() {
+    var se = document.scrollingElement;
+    if (se) return se.scrollTop || 0;
+    return (document.documentElement && document.documentElement.scrollTop) ||
+      (document.body && document.body.scrollTop) || 0;
+  }
+  window.addEventListener('touchstart', function(e) {
+    if (getScrollTop() <= 0) {
+      tracking = true;
+      triggered = false;
+      startY = e.touches[0].clientY;
+    } else {
+      tracking = false;
+    }
+  }, {passive: true});
+  window.addEventListener('touchmove', function(e) {
+    if (!tracking || triggered) return;
+    var dy = e.touches[0].clientY - startY;
+    if (dy > 70) {
+      triggered = true;
+      if (window.${_pullToRefreshChannel} &&
+          window.${_pullToRefreshChannel}.postMessage) {
+        window.${_pullToRefreshChannel}.postMessage('refresh');
+      }
+    }
+  }, {passive: true});
+  window.addEventListener('touchend', function() { tracking = false; }, {passive: true});
+  window.addEventListener('touchcancel', function() { tracking = false; }, {passive: true});
+})();
+''';
+    await _controller.runJavaScript(script);
   }
 
   Future<void> _loadInitialUrl() async {
-    await _clearWebViewData();
     await _controller.loadRequest(Uri.parse(widget.initialUrl));
   }
 
   Future<void> _reload() async {
-    await _clearWebViewData();
     await _controller.reload();
   }
 
@@ -218,95 +279,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         ? WebViewWidget(controller: _controller)
                         : OfflineView(onRetry: _handleRetry),
                   ),
-                  Positioned.fill(
-                    child: SwipeReloadRegion(
-                      isEnabled: _isOnline,
-                      onTriggered: _reload,
-                    ),
-                  ),
                 ],
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (_isOnline) {
-            unawaited(_reload());
-          } else {
-            unawaited(_handleRetry());
-          }
-        },
-        tooltip: 'Reload',
-        child: const Icon(Icons.refresh),
-      ),
-    );
-  }
-}
-
-class SwipeReloadRegion extends StatefulWidget {
-  const SwipeReloadRegion({
-    super.key,
-    required this.onTriggered,
-    required this.isEnabled,
-  });
-
-  final Future<void> Function() onTriggered;
-  final bool isEnabled;
-
-  @override
-  State<SwipeReloadRegion> createState() => _SwipeReloadRegionState();
-}
-
-class _SwipeReloadRegionState extends State<SwipeReloadRegion> {
-  static const double _triggerDistance = 70;
-  static const double _edgeHeight = 56;
-
-  int? _activePointer;
-  double _dragDistance = 0;
-  bool _triggered = false;
-  bool _eligible = false;
-
-  void _reset() {
-    _activePointer = null;
-    _dragDistance = 0;
-    _triggered = false;
-    _eligible = false;
-  }
-
-  void _handlePointerDown(PointerDownEvent event) {
-    if (!widget.isEnabled) return;
-    _activePointer = event.pointer;
-    _eligible = event.localPosition.dy <= _edgeHeight;
-    _dragDistance = 0;
-    _triggered = false;
-  }
-
-  void _handlePointerMove(PointerMoveEvent event) {
-    if (!widget.isEnabled || _triggered || !_eligible) return;
-    if (_activePointer != event.pointer) return;
-    if (event.delta.dy <= 0) return;
-    _dragDistance += event.delta.dy;
-    if (_dragDistance >= _triggerDistance) {
-      _triggered = true;
-      unawaited(widget.onTriggered());
-    }
-  }
-
-  void _handlePointerUp(PointerUpEvent event) => _reset();
-
-  void _handlePointerCancel(PointerCancelEvent event) => _reset();
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: _handlePointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerUp,
-      onPointerCancel: _handlePointerCancel,
-      child: const SizedBox.expand(),
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () {
+      //     if (_isOnline) {
+      //       unawaited(_reload());
+      //     } else {
+      //       unawaited(_handleRetry());
+      //     }
+      //   },
+      //   tooltip: 'Reload',
+      //   child: const Icon(Icons.refresh),
+      // ),
     );
   }
 }
