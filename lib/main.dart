@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
@@ -39,8 +38,6 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController _controller;
   double _progress = 0;
-  bool _canGoBack = false;
-  bool _canGoForward = false;
   bool _isOnline = true;
   bool _dialogVisible = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
@@ -53,12 +50,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (request) {
+            unawaited(_clearWebViewData());
+            return NavigationDecision.navigate;
+          },
           onPageStarted: (_) => _updateProgress(0),
           onProgress: (value) => _updateProgress(value / 100),
-          onPageFinished: (_) async {
-            await _syncNavigationState();
-            _updateProgress(1);
-          },
+          onPageFinished: (_) => _updateProgress(1),
           onWebResourceError: (_) {
             _handleOffline(
               message:
@@ -66,8 +64,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
             );
           },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.initialUrl));
+      );
+    unawaited(_loadInitialUrl());
     _initConnectivity();
   }
 
@@ -96,13 +94,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
     setState(() => _isOnline = true);
     _closeDialogIfOpen();
-    _controller.reload();
+    unawaited(_reload());
   }
 
   void _handleOffline({required String message}) {
     if (!mounted) return;
     setState(() => _isOnline = false);
-    _showOfflineDialog(message);
+    unawaited(_showOfflineDialog(message));
   }
 
   Future<void> _showOfflineDialog(String message) async {
@@ -147,9 +145,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
     if (online) {
       setState(() => _isOnline = true);
-      await _controller.reload();
+      await _reload();
     } else {
-      _showOfflineDialog('Still no connection. Please try again.');
+      unawaited(_showOfflineDialog('Still no connection. Please try again.'));
     }
   }
 
@@ -158,36 +156,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
     setState(() => _progress = value);
   }
 
-  Future<void> _syncNavigationState() async {
-    final canGoBack = await _controller.canGoBack();
-    final canGoForward = await _controller.canGoForward();
-
-    if (!mounted) return;
-    setState(() {
-      _canGoBack = canGoBack;
-      _canGoForward = canGoForward;
-    });
+  Future<void> _clearWebViewData() async {
+    await _controller.clearCache();
   }
 
-  Future<void> _goBack() async {
-    if (await _controller.canGoBack()) {
-      await _controller.goBack();
-      await _syncNavigationState();
-    }
-  }
-
-  Future<void> _goForward() async {
-    if (await _controller.canGoForward()) {
-      await _controller.goForward();
-      await _syncNavigationState();
-    }
-  }
-
-  Future<void> _reload() => _controller.reload();
-
-  Future<void> _goHome() async {
+  Future<void> _loadInitialUrl() async {
+    await _clearWebViewData();
     await _controller.loadRequest(Uri.parse(widget.initialUrl));
-    await _syncNavigationState();
+  }
+
+  Future<void> _reload() async {
+    await _clearWebViewData();
+    await _controller.reload();
   }
 
   @override
@@ -199,7 +179,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -207,108 +186,100 @@ class _WebViewScreenState extends State<WebViewScreen> {
             if (_progress < 1 && _isOnline)
               LinearProgressIndicator(value: _progress),
             Expanded(
-              child: _isOnline
-                  ? WebViewWidget(controller: _controller)
-                  : OfflineView(onRetry: _handleRetry),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: _isOnline
+                        ? WebViewWidget(controller: _controller)
+                        : OfflineView(onRetry: _handleRetry),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SwipeReloadRegion(
+                      isEnabled: _isOnline,
+                      onTriggered: _reload,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: GlassBottomBar(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.home),
-              tooltip: 'Home',
-              onPressed: _isOnline ? _goHome : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              tooltip: 'Back',
-              onPressed: _isOnline && _canGoBack ? _goBack : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.arrow_forward),
-              tooltip: 'Forward',
-              onPressed: _isOnline && _canGoForward ? _goForward : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Reload',
-              onPressed: () {
-                if (_isOnline) {
-                  _reload();
-                } else {
-                  _handleRetry();
-                }
-              },
-            ),
-          ],
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          if (_isOnline) {
+            unawaited(_reload());
+          } else {
+            unawaited(_handleRetry());
+          }
+        },
+        tooltip: 'Reload',
+        child: const Icon(Icons.refresh),
       ),
     );
   }
 }
 
-class GlassBottomBar extends StatelessWidget {
-  const GlassBottomBar({super.key, required this.child});
+class SwipeReloadRegion extends StatefulWidget {
+  const SwipeReloadRegion({
+    super.key,
+    required this.onTriggered,
+    required this.isEnabled,
+  });
 
-  final Widget child;
+  final Future<void> Function() onTriggered;
+  final bool isEnabled;
+
+  @override
+  State<SwipeReloadRegion> createState() => _SwipeReloadRegionState();
+}
+
+class _SwipeReloadRegionState extends State<SwipeReloadRegion> {
+  static const double _triggerDistance = 70;
+  static const double _regionHeight = 36;
+
+  double _dragDistance = 0;
+  bool _triggered = false;
+
+  void _reset() {
+    _dragDistance = 0;
+    _triggered = false;
+  }
+
+  void _handleStart(DragStartDetails details) {
+    _reset();
+  }
+
+  void _handleUpdate(DragUpdateDetails details) {
+    if (!widget.isEnabled || _triggered) return;
+    if (details.delta.dy <= 0) return;
+    _dragDistance += details.delta.dy;
+    if (_dragDistance >= _triggerDistance) {
+      _triggered = true;
+      unawaited(widget.onTriggered());
+    }
+  }
+
+  void _handleEnd(DragEndDetails details) {
+    _reset();
+  }
+
+  void _handleCancel() {
+    _reset();
+  }
 
   @override
   Widget build(BuildContext context) {
-    const double height = 60;
-    const double inset = 12;
-    final radius = BorderRadius.circular(20);
-
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(inset, 0, inset, inset),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                color: Colors.white.withOpacity(0.6),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Material(
-                type: MaterialType.transparency,
-                child: SizedBox(
-                  height: height,
-                  child: IconButtonTheme(
-                    data: IconButtonThemeData(
-                      style: IconButton.styleFrom(
-                        foregroundColor: const Color(0xFF0F172A),
-                        disabledForegroundColor: const Color(0x990F172A),
-                        iconSize: 24,
-                        padding: const EdgeInsets.all(12),
-                      ),
-                    ),
-                    child: child,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragStart: _handleStart,
+      onVerticalDragUpdate: _handleUpdate,
+      onVerticalDragEnd: _handleEnd,
+      onVerticalDragCancel: _handleCancel,
+      child: const SizedBox(height: _regionHeight),
     );
   }
 }
