@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
@@ -15,7 +16,7 @@ class WeViewApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'WeView',
+      title: 'RR Dream',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
@@ -37,6 +38,7 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController _controller;
+  late final Uri _initialUri;
   double _progress = 0;
   bool _isOnline = true;
   bool _dialogVisible = false;
@@ -45,12 +47,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void initState() {
     super.initState();
+    _initialUri = Uri.parse(widget.initialUrl);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (request) {
+            final uri = Uri.tryParse(request.url);
+            if (uri != null && _shouldOpenExternally(uri)) {
+              unawaited(_openExternalUrl(uri));
+              return NavigationDecision.prevent;
+            }
+
             unawaited(_clearWebViewData());
             return NavigationDecision.navigate;
           },
@@ -154,6 +163,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
   void _updateProgress(double value) {
     if (!mounted) return;
     setState(() => _progress = value);
+  }
+
+  bool _shouldOpenExternally(Uri uri) {
+    if (uri.scheme == 'about' || uri.scheme == 'data') {
+      return false;
+    }
+
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      return true;
+    }
+
+    return uri.host != _initialUri.host;
+  }
+
+  Future<void> _openExternalUrl(Uri uri) async {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _clearWebViewData() async {
