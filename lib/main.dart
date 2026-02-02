@@ -218,10 +218,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         ? WebViewWidget(controller: _controller)
                         : OfflineView(onRetry: _handleRetry),
                   ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
+                  Positioned.fill(
                     child: SwipeReloadRegion(
                       isEnabled: _isOnline,
                       onTriggered: _reload,
@@ -264,47 +261,52 @@ class SwipeReloadRegion extends StatefulWidget {
 
 class _SwipeReloadRegionState extends State<SwipeReloadRegion> {
   static const double _triggerDistance = 70;
-  static const double _regionHeight = 36;
+  static const double _edgeHeight = 56;
 
+  int? _activePointer;
   double _dragDistance = 0;
   bool _triggered = false;
+  bool _eligible = false;
 
   void _reset() {
+    _activePointer = null;
+    _dragDistance = 0;
+    _triggered = false;
+    _eligible = false;
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!widget.isEnabled) return;
+    _activePointer = event.pointer;
+    _eligible = event.localPosition.dy <= _edgeHeight;
     _dragDistance = 0;
     _triggered = false;
   }
 
-  void _handleStart(DragStartDetails details) {
-    _reset();
-  }
-
-  void _handleUpdate(DragUpdateDetails details) {
-    if (!widget.isEnabled || _triggered) return;
-    if (details.delta.dy <= 0) return;
-    _dragDistance += details.delta.dy;
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (!widget.isEnabled || _triggered || !_eligible) return;
+    if (_activePointer != event.pointer) return;
+    if (event.delta.dy <= 0) return;
+    _dragDistance += event.delta.dy;
     if (_dragDistance >= _triggerDistance) {
       _triggered = true;
       unawaited(widget.onTriggered());
     }
   }
 
-  void _handleEnd(DragEndDetails details) {
-    _reset();
-  }
+  void _handlePointerUp(PointerUpEvent event) => _reset();
 
-  void _handleCancel() {
-    _reset();
-  }
+  void _handlePointerCancel(PointerCancelEvent event) => _reset();
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Listener(
       behavior: HitTestBehavior.translucent,
-      onVerticalDragStart: _handleStart,
-      onVerticalDragUpdate: _handleUpdate,
-      onVerticalDragEnd: _handleEnd,
-      onVerticalDragCancel: _handleCancel,
-      child: const SizedBox(height: _regionHeight),
+      onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: const SizedBox.expand(),
     );
   }
 }
