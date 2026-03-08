@@ -55,6 +55,7 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   static const String _pullToRefreshChannel = 'PullToRefreshChannel';
   static const Duration _pullToRefreshCooldown = Duration(seconds: 2);
+  static const String _broadcastTopic = 'all-users';
 
   late final WebViewController _controller;
   late final Uri _initialUri;
@@ -63,6 +64,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _dialogVisible = false;
   DateTime? _lastPullToRefreshAt;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<String>? _fcmTokenRefreshSubscription;
 
   @override
   void initState() {
@@ -122,9 +124,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
 
     final token = await messaging.getToken();
-    print('=========================================');
-    print('FCM Token: $token');
-    print('=========================================');
+    if (kDebugMode) {
+      print('=========================================');
+      print('FCM Token: $token');
+      print('=========================================');
+    }
+
+    await _subscribeToBroadcastTopic(messaging);
+
+    _fcmTokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) async {
+      if (kDebugMode) {
+        print('FCM token refreshed: $newToken');
+      }
+      await _subscribeToBroadcastTopic(messaging);
+    });
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (kDebugMode) {
@@ -148,6 +161,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
         );
       }
     });
+  }
+
+  Future<void> _subscribeToBroadcastTopic(FirebaseMessaging messaging) async {
+    try {
+      await messaging.subscribeToTopic(_broadcastTopic);
+      if (kDebugMode) {
+        print('Subscribed to topic: $_broadcastTopic');
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        print('Topic subscription failed: $error');
+      }
+    }
   }
 
   Future<void> _initConnectivity() async {
@@ -318,6 +344,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
+    _fcmTokenRefreshSubscription?.cancel();
     super.dispose();
   }
 
