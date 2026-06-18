@@ -132,7 +132,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
     await _subscribeToBroadcastTopic(messaging);
 
-    _fcmTokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) async {
+    _fcmTokenRefreshSubscription = messaging.onTokenRefresh.listen((
+      newToken,
+    ) async {
       if (kDebugMode) {
         print('FCM token refreshed: $newToken');
       }
@@ -403,7 +405,7 @@ class OfflineView extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.asset(
-                'assets/logo.webp',
+                'assets/logo.jpeg',
                 width: 96,
                 height: 96,
                 fit: BoxFit.cover,

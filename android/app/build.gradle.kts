@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kalyan.webview"
+    namespace = "com.raj.starkalyan"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -72,7 +72,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.kalyan.webview"
+        applicationId = "com.raj.starkalyan"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
