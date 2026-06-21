@@ -13,16 +13,16 @@ flutter_launcher_icons:
   remove_alpha_channel_ios: true
 
   web:
-    generate: true
+    generate: false
     image_path: "path/to/image.png"
     background_color: "#hexcode"
     theme_color: "#hexcode"
 
   windows:
-    generate: true
+    generate: false
     image_path: "path/to/image.png"
     icon_size: 48 # min:48, max:256, default: 48
 
   macos:
-    generate: true
+    generate: false
     image_path: "path/to/image.png"
