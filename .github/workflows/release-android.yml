@@ -50,6 +50,9 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+      
+      - name: Generate icons
+        run: dart run flutter_launcher_icons
 
       - name: Build Android appbundle
         run: flutter build appbundle --release
