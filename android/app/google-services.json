@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "647323512140",
+    "project_id": "rrdream-4d72e",
+    "storage_bucket": "rrdream-4d72e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:647323512140:android:f2bbff2d26e781bdecf3e9",
+        "android_client_info": {
+          "package_name": "com.raj.starkalyan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBd1Dha6AO7_tnsKTNbHNeAx9OaM5kg1nU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
