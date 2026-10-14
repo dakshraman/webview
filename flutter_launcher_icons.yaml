@@ -8,9 +8,9 @@ flutter_launcher_icons:
   # adaptive_icon_background: "assets/icon/background.png"
   # adaptive_icon_foreground: "assets/icon/foreground.png"
 
-  ios: true
+  ios: false
   # image_path_ios: "assets/icon/icon.png"
-  remove_alpha_channel_ios: true
+  remove_alpha_channel_ios: false
 
   web:
     generate: false

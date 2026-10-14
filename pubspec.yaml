@@ -68,10 +68,6 @@ flutter:
   assets:
     - assets/logo.jpeg
 
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: assets/logo.jpeg
 
 package_rename_config:
   android:
