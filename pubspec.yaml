@@ -75,8 +75,8 @@ flutter_launcher_icons:
 
 package_rename_config:
   android:
-    app_name: "Star Kalyan"
-    package_name: "com.raj.starkalyan"
+    app_name: "AM Kalyan"
+    package_name: "com.raj.amkalyan"
 
   # To add assets to your application, add an assets section, like this:
   # assets:
