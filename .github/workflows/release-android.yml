@@ -19,6 +19,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
+      ANDROID_KEYSTORE_PATH: upload-keystore.jks
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -47,6 +48,19 @@ jobs:
             echo "Keystore not found. Place upload-keystore.jks in the repo root or android/app." >&2
             exit 1
           fi
+
+      - name: Configure Android signing
+        run: |
+          KEYSTORE_FILE="../upload-keystore.jks"
+          if [ -f "android/app/upload-keystore.jks" ]; then
+            KEYSTORE_FILE="app/upload-keystore.jks"
+          fi
+          cat <<EOF > android/key.properties
+          storeFile=${KEYSTORE_FILE}
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
 
       - name: Flutter pub get
         run: flutter pub get
