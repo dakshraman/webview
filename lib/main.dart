@@ -322,9 +322,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
     var dy = e.touches[0].clientY - startY;
     if (dy > 70) {
       triggered = true;
-      if (window.${_pullToRefreshChannel} &&
-          window.${_pullToRefreshChannel}.postMessage) {
-        window.${_pullToRefreshChannel}.postMessage('refresh');
+      if (window.$_pullToRefreshChannel &&
+          window.$_pullToRefreshChannel.postMessage) {
+        window.$_pullToRefreshChannel.postMessage('refresh');
       }
     }
   }, {passive: true});
