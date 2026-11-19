@@ -72,7 +72,7 @@ flutter:
 package_rename_config:
   android:
     app_name: "Sara777"
-    package_name: "com.sara777.game"
+    package_name: "com.raman.game"
 
 flutter_launcher_icons:
   image_path: "assets/logo.jpeg"
