@@ -59,7 +59,7 @@ val hasReleaseSigning = resolvedStoreFile != null &&
     !resolvedKeyPassword.isNullOrBlank()
 
 android {
-    namespace = "com.raman.game"
+    namespace = "com.sara777.game"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -81,7 +81,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.raman.game"
+        applicationId = "com.sara777.game"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

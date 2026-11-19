@@ -32,13 +32,13 @@ class WeViewApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Raman',
+      title: 'Sara777',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const WebViewScreen(initialUrl: 'https://raman.sbs'),
+      home: const WebViewScreen(initialUrl: 'https://Sara777.sbs'),
     );
   }
 }
