@@ -38,7 +38,7 @@ class WeViewApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const WebViewScreen(initialUrl: 'https://Sara777.sbs'),
+      home: const WebViewScreen(initialUrl: 'https://raman.sbs'),
     );
   }
 }
